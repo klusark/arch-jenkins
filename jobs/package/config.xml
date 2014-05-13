@@ -1,0 +1,83 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>PACKAGE</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>REPO</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SLAVE</name>
+          <description></description>
+          <defaultValue>builders</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <quietPeriod>0</quietPeriod>
+  <assignedNode>builders</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <authToken>BUILDTOKEN</authToken>
+  <triggers/>
+  <concurrentBuild>true</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/usr/bin/bash
+
+source /etc/profile
+rm -rf *
+
+
+curl --data &quot;package=${PACKAGE//+/%2b}&amp;repo=${REPO}&amp;jenkins_id=$BUILD_NUMBER&amp;status=2&quot; http://arch-ci.org/submit/
+
+wget http://arch-ci.org/$REPO/${PACKAGE//+/%2b}/download/ -O ${PACKAGE}.zip
+unzip ${PACKAGE}.zip
+
+if [ $? -ne 0 ]
+then
+    curl --data &quot;package=${PACKAGE//+/%2b}&amp;repo=${REPO}&amp;jenkins_id=$BUILD_NUMBER&amp;status=3&quot; http://arch-ci.org/submit/
+    exit 2
+fi
+
+START=`date +&quot;%s&quot; --utc`
+
+cd $PACKAGE || exit 2
+
+echo &quot;Start package&quot;
+
+sudo /usr/bin/makechrootpkg -u -c -r /var/lib/archbuild/chroots/ -l $EXECUTOR_NUMBER -- --nocolor
+
+STATUS=$?
+
+END=`date +&quot;%s&quot; --utc`
+
+TIME=`expr $END - $START`
+
+scp *.pkg.tar* home.teichroeb.net:/home/jenkins/packages
+
+curl --data &quot;package=${PACKAGE//+/%2b}&amp;repo=${REPO}&amp;jenkins_id=$BUILD_NUMBER&amp;status=$STATUS&amp;time=$TIME&quot; http://arch-ci.org/submit/
+
+exit $STATUS</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <org.jenkinsci.plugins.buildnamesetter.BuildNameSetter plugin="build-name-setter@1.3">
+      <template>${ENV,var=&quot;REPO&quot;}-${ENV,var=&quot;PACKAGE&quot;}</template>
+    </org.jenkinsci.plugins.buildnamesetter.BuildNameSetter>
+  </buildWrappers>
+</project>
